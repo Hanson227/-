@@ -1,0 +1,180 @@
+#用于向网页发送post请求
+import requests #pip install requests
+#用于记录当前时间
+import datetime  #pip install datetime
+#用于解析数据
+from pyquery import PyQuery as pq #pip install pyquery
+#用于设置延时
+import time
+#用于在程序中执行cmd命令
+import subprocess
+
+print('程序正在实时监测网络状态中...')
+
+
+'''登录网络方法'''
+def login_network():
+    # 登录校园网的请求地址
+    url = 'http://1.1.1.1:8888/webauth.do?wlanacip=192.16.100.1&wlanacname=zax_hzstu&wlanuserip=10.52.210.42&mac=80:05:88:71:a9:85&vlan=0&url=http://1.1.1.1'#需要根据自己实际获取
+    #请求参数
+    data = {
+        "auth_type": "0",
+        "isBindMac1": "0",
+        "pageid": "1",
+        "templatetype": "1",
+        "listbindmac": "0",
+        "recordmac": "0",
+        "isRemind": "0",
+        "loginTimes": "",
+        "groupId": "",
+        "distoken": "",
+        "echostr": "",
+        "url": "http://1.1.1.1",
+        "isautoauth": "",
+        "notice_pic_float": "/portal/uploads/pc/hb_pay/images/rrs_bg.jpg",
+        "userId": "",#你的账号
+        "passwd": "",#你的密码
+        "remInfo": "on"}
+
+    #异常处理 首先执行try下的代码 若报错则执行except下的代码 若无异常则不执行except中的代码 可避免报错导致程序终止'''
+    try:
+        #对校园网登录网址发送请求(执行登录操作) 并获取请求到的页面数据
+        res = requests.post(url, data=data).text
+
+        #设置登录状态为True
+        login_state = True
+
+        #使用pyquery初始化数据
+        doc = pq(res)
+
+        #获取错误信息并使其可遍历
+        errMessage = doc('#errMessage').items()
+
+        #遍历取出数据
+        for error_msg in errMessage:
+            #通过value属性取出错误信息
+            error_message = error_msg.attr('value')
+            #若错误信息为“登录失败,帐号不存在” 设置登录状态为"account_error"
+            if error_message =='登录失败,帐号不存在':
+                login_state="account_error"
+            # 若错误信息为“登录失败，密码错误” 设置登录状态为"password_error"
+            elif error_message =='登录失败，密码错误':
+                login_state="password_error"
+
+    #若网络出现异常 设置登录状态为False 如网络长时间不畅，1.1.1.1无法打开，无法执行post请求,则会报错
+    except:
+        login_state = False
+    #返回登录状态
+    return login_state
+
+'''检查网络状态方法'''
+def check_network_state():
+    #检测能否ping通网络 network_state为0时，代码正常执行，表示能ping通网络 network_state为1时，代码未能执行完毕，表示网络不畅
+    network_state=subprocess.run('ping -n 2 www.baidu.com',stdout=subprocess.PIPE,shell=True).returncode
+    return network_state
+
+#无限循环执行以下代码
+while True:
+    #检查网络状态 获取网络状态
+    network_state=check_network_state()
+
+    # 若network_state为1时(网络不畅),执行以下代码
+    if network_state == 1:
+        # 获取当前时间
+        network_error_time = str(datetime.datetime.now())
+        # 网络错误提示信息
+        network_error_message = "[" + network_error_time + "]" + ' 网络无法连接...' + '\n'
+        # 打印网络错误提示信息
+        print(network_error_message)
+        # 获取当前时间
+        restart_login_time = str(datetime.datetime.now())
+        # 正在重连提示信息
+        restart_login_message = "[" + restart_login_time + "]" + "正在重新登录..." + '\n'
+        # 打印正在重连提示信息
+        print(restart_login_message)
+        # 打开network_error.txt(不存在则自动创建)
+        f = open('network_error.txt', "a", encoding='utf8')
+        # 将网络错误信息和重连信息写入到network_error.txt中
+        f.write(network_error_message + restart_login_message)
+        # 关闭写入
+        f.close()
+
+        # 执行登录校园网方法 获取登录状态
+        login_state = login_network()
+
+        # 当登录状态为account_error时(账号错误):
+        if login_state == "account_error":
+            # 获取当前时间
+            account_error_time = str(datetime.datetime.now())
+            # 账号错误信息
+            account_error_message = "[" + account_error_time + "]" + '登录失败,帐号不存在.请检查账号后重试' + "\n"
+            print(account_error_message)
+            # 打开network_error.txt(不存在则自动创建)
+            f = open('network_error.txt', "a", encoding='utf8')
+            # 将账号错误信息写入到network_error.txt中
+            f.write(account_error_message)
+            # 关闭写入
+            f.close()
+
+        # 当登录状态为password_error时(密码错误):
+        elif login_state == "password_error":
+            # 获取当前时间
+            password_error_time = str(datetime.datetime.now())
+            # 密码错误信息
+            password_error_message = "[" + password_error_time + "]" + '登录失败,密码错误.请检查密码后重试' '\n'
+            print(password_error_message)
+            # 打开network_error.txt(不存在则自动创建)
+            f = open('network_error.txt', "a", encoding='utf8')
+            # 将密码错误信息写入到network_error.txt中
+            f.write(password_error_message)
+            # 关闭写入
+            f.close()
+
+        # 当登录状态为False时(无法联网):
+        elif login_state == False:
+            # 获取当前时间
+            relogin_success_time = str(datetime.datetime.now())
+            # 登录失败信息
+            login_fail_message = "[" + relogin_success_time + "]" + '啊噢...暂时登录不上...建议重启路由器后再试' + '\n'
+            print(login_fail_message)
+            # 打开network_error.txt(不存在则自动创建)
+            f = open('network_error.txt', "a", encoding='utf8')
+            # 写入登录失败信息
+            f.write(login_fail_message)
+            # 关闭写入
+            f.close()
+
+        # 当登录状态为True时(登录成功)
+        elif login_state == True:
+            # 获取当前时间
+            relogin_success_time = str(datetime.datetime.now())
+            # 重连成功提示信息
+            relogin_success_message = "[" + relogin_success_time + "]" + ' 重新登录成功！正在测试网络状态...' + '\n'
+            # 打印重连成功信息
+            print(relogin_success_message)
+            # 打开network_error.txt(不存在则自动创建)
+            f = open('network_error.txt', "a", encoding='utf8')
+            # 将重连成功提示写入到network_error.txt中
+            f.write(relogin_success_message)
+            # 关闭写入
+            f.close()
+
+            # 再次检查网络网络状态
+            network_state = check_network_state()
+
+            # 网络状态正常时:
+            if network_state == 0:
+                # 获取当前时间
+                restart_success_time = str(datetime.datetime.now())
+                # 网络恢复正常信息
+                restart_success_message = "[" + restart_success_time + "]" + '网络已恢复正常!' + '\n\n'
+                print(restart_success_message)
+                # 打开network_error.txt(不存在则自动创建)
+                f = open('network_error.txt', "a", encoding='utf8')
+                # 写入网络恢复正常信息
+                f.write(restart_success_message)
+                # 关闭写入
+                f.close()
+
+    # 延时一秒
+    time.sleep(1)
